@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/swaypaper
+swaypaper.so
+swaypaper.dylib
+swaypaper.dll
+swaypaper.a
+swaypaper.lib
+swaypaper-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
