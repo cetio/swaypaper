@@ -7,6 +7,7 @@ import std.string;
 import core.thread;
 import std.datetime;
 import std.conv;
+import std.algorithm;
 
 void main(string[] args)
 {
@@ -16,6 +17,8 @@ void main(string[] args)
 
     int index;
     string[] dirs;
+    DirEntry[] cache;
+    DirEntry[] wallpapers;
     int interval = INTERVAL_MAX;
 
     if (args.length > 1)
@@ -33,18 +36,6 @@ void main(string[] args)
 
     while (true)
     {
-        if (exists(CONFIG_PATH))
-        {
-            dirs = readText(CONFIG_PATH).splitLines;
-            if (dirs.length <= 1)
-                throw new Throwable("Config must contain interval (in msecs) followed by one directory per line.");
-
-            INTERVAL_MAX = dirs[0].to!int / 100;
-            dirs = dirs[1..$];
-        }
-        else
-            throw new Throwable("Missing ~/.config/swaypaper/config. Config must contain interval (in msecs) followed by one directory per line.");
-
         if (!exists(CMD_PATH))
             write(CMD_PATH, new ubyte[0]);
 
@@ -74,8 +65,28 @@ void main(string[] args)
 
         if (interval == 0)
         {
-            string wallpaper = choice(dirEntries(expandTilde(dirs[index]), SpanMode.shallow).array).name;
-            executeShell("swww img "~wallpaper);
+            if (exists(CONFIG_PATH))
+            {
+                dirs = readText(CONFIG_PATH).splitLines;
+                if (dirs.length <= 1)
+                    throw new Throwable("Config must contain interval (in msecs) followed by one directory per line.");
+
+                INTERVAL_MAX = dirs[0].to!int / 100;
+                dirs = dirs[1..$];
+            }
+            else
+                throw new Throwable("Missing ~/.config/swaypaper/config. Config must contain interval (in msecs) followed by one directory per line.");
+
+            if (dirEntries(expandTilde(dirs[index]), SpanMode.shallow).array != cache ||
+                wallpapers.length == 0)
+            {
+                cache = dirEntries(expandTilde(dirs[index]), SpanMode.shallow).array;
+                wallpapers = cache;
+            }
+
+            DirEntry wallpaper = choice(wallpapers);
+            wallpapers = wallpapers.filter!(x => x != wallpaper).array;
+            executeShell("swww img "~wallpaper.name);
             interval = INTERVAL_MAX;
             continue;
         }
