@@ -117,8 +117,7 @@ void main(string[] args)
             if (kind == Slideshow.Random)
                 wallpaper = choice(wallpapers);
             else if (Slideshow.Sequential)
-            // TODO: It no work.
-                wallpaper = wallpapers[widx + 1 >= dirs.length ? widx = 0 : widx++];
+                wallpaper = wallpapers[widx >= wallpapers.length ? widx = 0 : widx++];
 
             if (wallpaper.indexOf(".stretch") != -1)
                 executeShell("swww img "~wallpaper~" --resize stretch");
