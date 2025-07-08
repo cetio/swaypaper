@@ -8,18 +8,28 @@ import core.thread;
 import std.datetime;
 import std.conv;
 import std.algorithm;
+import std.json;
+
+enum Slideshow
+{
+    Random,
+    Sequential
+}
 
 void main(string[] args)
 {
     immutable string CONFIG_PATH = expandTilde("~/.config/swaypaper/config");
     immutable string CMD_PATH = expandTilde("~/.cache/swaypaper.cmd");
-    int INTERVAL_MAX = 10;
+    ulong INTERVAL_MAX = 1;
 
-    int index;
+    JSONValue json;
+
+    size_t didx = -1;
+    size_t widx;
+    Slideshow kind;
     string[] dirs;
-    DirEntry[] cache;
-    DirEntry[] wallpapers;
-    int interval = INTERVAL_MAX;
+    string[] wallpapers;
+    ulong interval = INTERVAL_MAX;
 
     if (args.length > 1)
     {
@@ -43,13 +53,15 @@ void main(string[] args)
         {
         case "next":
             write(CMD_PATH, new ubyte[0]);
-            index = index + 1 >= dirs.length ? 0 : index + 1;
+            didx = didx + 1 >= dirs.length ? 0 : didx + 1;
             interval = 0;
+            widx = 0;
             break;
         case "prev":
             write(CMD_PATH, new ubyte[0]);
-            index = index - 1 < 0 ? cast(int)dirs.length - 1 : index - 1;
+            didx = didx - 1 < 0 ? dirs.length - 1 : didx - 1;
             interval = 0;
+            widx = 0;
             break;
         case "now":
             write(CMD_PATH, new ubyte[0]);
@@ -65,28 +77,56 @@ void main(string[] args)
 
         if (interval == 0)
         {
+            // TODO: This is all unoptimized garbage.
             if (exists(CONFIG_PATH))
             {
-                dirs = readText(CONFIG_PATH).splitLines;
-                if (dirs.length <= 1)
-                    throw new Throwable("Config must contain interval (in msecs) followed by one directory per line.");
+                // TODO: Error checking?
+                json = parseJSON(readText(CONFIG_PATH));
+                dirs = json["dirs"].array.map!(x => x.str).array;
+                INTERVAL_MAX = json["interval"].integer / 100;
 
-                INTERVAL_MAX = dirs[0].to!int / 100;
-                dirs = dirs[1..$];
+                if (didx == -1)
+                    didx = json["current"].integer;
+                else if (didx != json["current"].integer)
+                {
+                    json["current"] = didx;
+                    // TODO: This butchers original layout.
+                    write(CONFIG_PATH, json.toPrettyString);
+                }
+
+                // TODO: This could be an associative array, but this codebase sucks anyway.
+                switch (json["slideshow"].str)
+                {
+                case "random":
+                    kind = Slideshow.Random;
+                    break;
+                case "sequential":
+                    kind = Slideshow.Sequential;
+                    break;
+                default:
+                    assert(0);
+                }
             }
             else
-                throw new Throwable("Missing ~/.config/swaypaper/config. Config must contain interval (in msecs) followed by one directory per line.");
+                throw new Throwable("Missing ~/.config/swaypaper/config.");
 
-            if (dirEntries(expandTilde(dirs[index]), SpanMode.shallow).array != cache ||
-                wallpapers.length == 0)
-            {
-                cache = dirEntries(expandTilde(dirs[index]), SpanMode.shallow).array;
-                wallpapers = cache;
-            }
+            if (dirEntries(expandTilde(dirs[didx]), SpanMode.shallow).array != wallpapers)
+                wallpapers = dirEntries(expandTilde(dirs[didx]), SpanMode.shallow).map!(x => x.name).array;
 
-            DirEntry wallpaper = choice(wallpapers);
-            wallpapers = wallpapers.filter!(x => x != wallpaper).array;
-            executeShell("swww img "~wallpaper.name);
+            string wallpaper;
+            if (kind == Slideshow.Random)
+                wallpaper = choice(wallpapers);
+            else if (Slideshow.Sequential)
+            // TODO: It no work.
+                wallpaper = wallpapers[widx + 1 >= dirs.length ? widx = 0 : widx++];
+
+            if (wallpaper.indexOf(".stretch") != -1)
+                executeShell("swww img "~wallpaper~" --resize stretch");
+            else if (wallpaper.indexOf(".fit") != -1)
+                executeShell("swww img "~wallpaper~" --resize fit");
+            else
+                executeShell("swww img "~wallpaper);
+
             interval = INTERVAL_MAX;
             continue;
         }
