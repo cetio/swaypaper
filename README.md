@@ -40,4 +40,5 @@ Swaypaper configuration files are at `~/.config/swaypaper/config` and the daemon
 ```
 
 The `slideshow` parameter may either be "sequential" or "random".
+The `interval` parameter dictates interval in 100s of milliseconds (300000 = 5m.)
 Formatting will likely be erased when updated by the daemon to store the `current` variable which indicates the currently selected directory set.
